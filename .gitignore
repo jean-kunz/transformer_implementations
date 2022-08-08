@@ -128,4 +128,12 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+**/.quarto/**
+
+_docs/**
+**/.DS_Store
+
+
 /.quarto/
+**/sidebar.yml
+**/.gitignore

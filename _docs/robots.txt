@@ -1,1 +1,0 @@
-Sitemap: https://jean-kunz.github.io/transformer_implementations/sitemap.xml
