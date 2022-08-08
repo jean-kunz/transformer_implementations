@@ -1,0 +1,30 @@
+name: transformers
+channels:
+  - defaults
+  - conda-forge
+  - fastai
+  - apple
+dependencies:
+  - python=3.9
+  - pip
+  - jupyter
+  - pip:
+    - graphviz  
+    - seaborn
+    - matplotlib
+    - bokeh
+    - numpy
+    - pandas
+    - nbdev
+    - torch
+
+
+
+
+
+
+
+
+
+    
+
