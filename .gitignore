@@ -134,7 +134,7 @@ _docs/**
 **/.DS_Store
 
 
-/.quarto/
+**/.quarto/
 **/sidebar.yml
 **/.gitignore
 
