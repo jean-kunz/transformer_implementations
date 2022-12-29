@@ -160,7 +160,7 @@ class MultiHeadAttention(nn.Module):
         mh_attn, mh_attn_weight = attention(q, k, v, mask=mask, dropout=self.dropout)
         print(mh_attn.shape, mh_attn_weight.shape)
         # we need to create a contiguous memory space for tensor after transpose so we can apply view. 
-        concat_attn = mh_attn.transpose(2, 1).contiguous().view(1,seq_len, h*d_k)
+        concat_attn = mh_attn.transpose(2, 1).contiguous().view(b,seq_len, h*d_k)
         concat_attn_weight = torch.sum(mh_attn_weight, dim=1)
         assert concat_attn.size() == (b,l, e)
         # apply linear layer on concatenated attention.
