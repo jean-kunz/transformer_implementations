@@ -1,10 +1,38 @@
 {
     "python.envFile": "${workspaceFolder}/.env",
     "python.defaultInterpreterPath": "${env:HOME}/Library/Caches/pypoetry/virtualenvs/transformer-implementations-urBBcPaT-py3.11",
-    "python.analysis.typeCheckingMode": "basic",
-    "python.languageServer": "Default",
-    "editor.formatOnSave": true,
     "autoDocstring.docstringFormat": "pep257",
     "python.testing.pytestEnabled": true,
     "python.testing.unittestEnabled": false,
+    "editor.rulers": [
+        {
+            "column": 120,
+            "color": "#ffcc00"
+        }
+    ],
+    "notebook.formatOnSave.enabled": true,
+    "editor.formatOnSave": true,
+    "notebook.cellToolbarVisibility": "hover",
+    "notebook.find.scope": {
+        "markupSource": true,
+        "markupPreview": true,
+        "codeSource": true,
+        "codeOutput": true
+    },
+    "jupyter.themeMatplotlibPlots": true,
+    "jupyter.debugJustMyCode": true,
+    "diffEditor.experimental.useVersion2": true,
+    // pylance
+    "python.analysis.typeCheckingMode": "basic",
+    "python.languageServer": "Default",
+    "python.analysis.fixAll": [
+        "source.unusedImports",
+        "source.convertImportFormat"
+    ],
+    "python.analysis.autoFormatStrings": true,
+    // formatting
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter",
+        "editor.formatOnSave": true
+    }
 }
