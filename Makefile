@@ -1,4 +1,7 @@
+create_mac_env:
+	pyenv install 3.11 -s
+	pyenv local 3.11
+	poetry env use 3.11
+	poetry install
 
-setup_src_dependencies:
-	# we install the root of project (with setup.py)
-	pip install -e .
+install_mac: create_mac_env

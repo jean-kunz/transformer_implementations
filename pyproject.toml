@@ -1,0 +1,37 @@
+[tool.poetry]
+name = "transformer_implementations"
+version = "0.1.0"
+description = "an implementation of transformer components"
+authors = ["Jean Kunz"]
+readme = "README.md"
+packages = [{ include = 'my_transformer' }]
+
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pyyaml = "^6"
+pydantic-settings = "^2"
+graphviz = "^0"
+seaborn = "^0"
+matplotlib = "^3"
+bokeh = "^3"
+pandas = "^2"
+nbdev = "^2"
+torch = "^2"
+
+
+
+[tool.poetry.group.dev.dependencies]
+flake8 = ">=6"
+black = ">=23"
+pytest = ">=7.3"
+ipykernel = "^6.25.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 120
+

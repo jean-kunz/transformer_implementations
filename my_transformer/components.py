@@ -6,15 +6,19 @@ __all__ = ['device', 'g', 'TokenEmbeddings', 'PositionalEncoder', 'unidirectiona
 
 # %% ../notebooks/components.ipynb 2
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader
 from torch.nn import functional as F
 from dataclasses import dataclass
 import math
+import random
 
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
-g = torch.Generator().manual_seed(42)
+# device = torch.device('cpu')
+g = torch.Generator(device=device).manual_seed(42)
 
 # %% ../notebooks/components.ipynb 4
 class TokenEmbeddings(nn.Module):
@@ -23,208 +27,262 @@ class TokenEmbeddings(nn.Module):
         self.embedding_dim = embedding_dim
         self.vocab_size = vocab_size
         self.embedding = nn.Embedding(vocab_size, embedding_dim=embedding_dim)
-        
+
     def forward(self, x):
         return self.embedding(x)
 
 # %% ../notebooks/components.ipynb 7
 class PositionalEncoder(nn.Module):
-    ''' Module to encode position in a transformer like model. 
-    
+    """Module to encode position in a transformer like model.
+
 
     Args:
         max_seq_len (int): max length of sequence, aka L
         embedding_dim (int): dimension of embeddings in model, aka d
-        dropout (float):  dropout rate. 0. for no dropout. 
-        is_learned (bool): true if the position is learned through gradient descent or given (non differentiable) as defined in original paper Attention is all you need, https://arxiv.org/abs/1706.03762        
-        n (int): user defined scalar set by default to 10000 as in paper        
-    '''    
-        
+        dropout (float):  dropout rate. 0. for no dropout.
+        is_learned (bool): true if the position is learned through gradient descent or given (non differentiable) as defined in original paper Attention is all you need, https://arxiv.org/abs/1706.03762
+        n (int): user defined scalar set by default to 10000 as in paper
+    """
+
     def positional_encoding(self):
-        pos = torch.arange(0,self.max_seq_len).repeat(self.embedding_dim, 1)
-        i = torch.arange(0,self.embedding_dim)
-        k = i // 2        
-        wt = pos.T/(self.n**(2*k/self.embedding_dim))
+        pos = torch.arange(0, self.max_seq_len).repeat(self.embedding_dim, 1)
+        i = torch.arange(0, self.embedding_dim)
+        k = i // 2
+        wt = pos.T / (self.n ** (2 * k / self.embedding_dim))
         sin = torch.sin(wt)
         cos = torch.cos(wt)
-        pe = torch.zeros((self.max_seq_len,self.embedding_dim))
-        pe[:,0::2]= sin[:,0::2]
-        pe[:,1::2]=cos[:,1::2]
+        pe = torch.zeros((self.max_seq_len, self.embedding_dim))
+        pe[:, 0::2] = sin[:, 0::2]
+        pe[:, 1::2] = cos[:, 1::2]
         return pe
 
-    def __init__(self, max_seq_len: int, embedding_dim: int, dropout: float = 0.,is_learned: bool = True, n:int=10000) -> None:
+    def __init__(
+        self,
+        max_seq_len: int,
+        embedding_dim: int,
+        dropout: float = 0.0,
+        is_learned: bool = True,
+        n: int = 10000,
+    ) -> None:
         super().__init__()
         self.max_seq_len = max_seq_len
         self.embedding_dim = embedding_dim
         self.is_learned = is_learned
         self.n = n
         self.dropout = nn.Dropout(p=dropout)
-        if self.is_learned:            
-            pos = torch.arange(0, self.max_seq_len, dtype=torch.long).unsqueeze(0) # shape (1, max_seq_len)
-            self.register_buffer('pos', pos)
+        if self.is_learned:
+            pos = torch.arange(0, self.max_seq_len, dtype=torch.long).unsqueeze(
+                0
+            )  # shape (1, max_seq_len)
+            self.register_buffer("pos", pos)
             self.pos_embedding = nn.Embedding(max_seq_len, embedding_dim)
         else:
             pos_encodings = self.positional_encoding().unsqueeze(0)
             pos_encodings.requires_grad_(False)
             # a buffer is a state in module which is not a parameter (learned)
-            self.register_buffer('pos_encodings',pos_encodings)
-            
+            self.register_buffer("pos_encodings", pos_encodings)
+
     def forward(self, x):
-        if self.is_learned:            
+        if self.is_learned:
             x = x + self.pos_embedding(self.pos)
         else:
-            x= x + self.pos_encodings
-        return self.dropout(x)            
-                        
- 
+            x = x + self.pos_encodings
+        return self.dropout(x)
 
-# %% ../notebooks/components.ipynb 11
-def unidirectional_mask(seq_len:int):
-    inverse_mask = torch.triu(torch.ones((1, seq_len,seq_len)), diagonal=1).type(torch.uint8)
-    mask = (inverse_mask==0)
+# %% ../notebooks/components.ipynb 12
+def unidirectional_mask(seq_len: int):
+    inverse_mask = torch.triu(torch.ones((1, seq_len, seq_len)), diagonal=1).type(
+        torch.uint8
+    )
+    mask = inverse_mask == 0
     return mask
 
-
 # %% ../notebooks/components.ipynb 15
-def attention(query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, 
-              mask: torch.Tensor=None, dropout: torch.nn.Module=None, verbose:bool=False) -> tuple[torch.Tensor, torch.Tensor]:
+def attention(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    mask: torch.Tensor = None,
+    dropout: torch.nn.Module = None,
+    verbose: bool = False,
+) -> tuple[torch.Tensor, torch.Tensor]:
     # is the size of atttention (=d//nb heads, where d is the size of attn model)
-    d_k = query.size(-1)    
-    scores = (query @ key.transpose(-2,-1)) /(torch.sqrt(torch.tensor(d_k, requires_grad=False)))
+    d_k = query.size(-1)
+    # scores = (query @ key.transpose(-2,-1)) /(torch.sqrt(torch.tensor(d_k, requires_grad=False)))
+    scores = (query @ key.transpose(-2, -1)) / math.sqrt(d_k)
     if mask is not None:
         # mask scores with -inf when mask is False. If we masked_fill(mask, -inf), it would mask when mask ==1 (is true). We want to mask when it's 0 (false).
-        scores = scores.masked_fill(mask==0, float('-inf'))
+        scores = scores.masked_fill(mask == 0, float("-inf"))
     if verbose:
         print("scores, mask", mask is not None, scores)
     soft = F.softmax(scores, dim=-1)
     if verbose:
         print("soft, mask", mask is not None, soft)
-    if dropout is not None:        
-        soft = dropout(soft)        
+    if dropout is not None:
+        soft = dropout(soft)
     atn = soft @ value
     if verbose:
         print("atn, mask", mask is not None, atn)
-    
-    assert atn.shape == query.shape, "atn shape should be the same as input tensors key, query, value"
+
+    assert (
+        atn.shape == query.shape
+    ), f"atn shape {atn.shape} should be the same as input tensors key, query and value shapes. Query shape: {query.shape}"
     return atn, soft
 
-
-# %% ../notebooks/components.ipynb 18
+# %% ../notebooks/components.ipynb 17
 class MultiHeadAttention(nn.Module):
-    ''' Multihead attention module as defined in Formal algorithm for transformers (https://arxiv.org/abs/2207.09238)
-    It can be used for different attention architectures like encoder-decoder/seq-to-seq (very first transformer), 
-    encoder-only (bert), decoder-only (gpt-*, gopher). 
-    
-    It splits weights into h heads.
-    '''
-    
-    def __init__(self, d:int, h: int, dropout: float=0., bias:bool=True):
-        super().__init__()
-        #g = torch.Generator().manual_seed(42)        
-        self.d = d  #dim of attention
-        self.h = h
-        assert d % h == 0 # dim of attention must be a multiple of nb of heads. d_k is the model dim per head, because we split by nb of heads.
-        self.d_k = d//h  # dim of attention on one head.
-        self.wq = nn.Linear(d,d, bias=bias)
-        self.wk = nn.Linear(d,d, bias=bias)
-        self.wv = nn.Linear(d,d, bias=bias)
-        self.wo = nn.Linear(d,d, bias=bias)  # linear transform by output weight matrix.
-        self.dropout = nn.Dropout(dropout)        
+    """Multihead attention module as defined in Formal algorithm for transformers (https://arxiv.org/abs/2207.09238)
+    It can be used for different attention architectures like encoder-decoder/seq-to-seq (very first transformer),
+    encoder-only (bert), decoder-only (gpt-*, gopher).
 
-    def forward(self, x: torch.Tensor, z: torch.Tensor, mask: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        '''_summary_
+    It splits weights into h heads.
+    """
+
+    def __init__(self, d: int, h: int, dropout: float = 0.0, bias: bool = True):
+        super().__init__()
+        # g = torch.Generator().manual_seed(42)
+        self.d = d  # dim of attention
+        self.h = h
+        assert (
+            d % h == 0
+        ), f"dim of attention {d} must be a multiple of nb of heads {h}. d_k {d//h} is the model dim per head, because we split by nb of heads."
+        self.d_k = d // h  # dim of attention on one head.
+        self.wq = nn.Linear(d, d, bias=bias)
+        self.wk = nn.Linear(d, d, bias=bias)
+        self.wv = nn.Linear(d, d, bias=bias)
+        self.wo = nn.Linear(
+            d, d, bias=bias
+        )  # linear transform by output weight matrix.
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(
+        self, x: torch.Tensor, z: torch.Tensor, mask: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """_summary_
 
         Args:
-            x (torch.Tensor): primary sequence 
-            z (torch.Tensor): context sequence, only for encoder-decoder architecture. 
+            x (torch.Tensor): primary sequence
+            z (torch.Tensor): context sequence, only for encoder-decoder architecture.
             mask (torch.Tensor, optional): _description_. Defaults to None.
-        '''
+        """
         b, l, e = x.size()
         if z is None:
-            z=x
+            z = x
         q = self.wq(x)
         k = self.wk(z)
         v = self.wk(z)
         # shape has to be batch, h, seq, d_k (d//h)
         # first view to : b,l,h,d_k , then transpose h and l so we got per head q,k,v
-        q = q.view(b, l, self.h, self.d_k).transpose(1,2)
-        k = k.view(b, l, self.h, self.d_k).transpose(1,2)
-        v = v.view(b, l, self.h, self.d_k).transpose(1,2)
+        q = q.view(b, l, self.h, self.d_k).transpose(1, 2)
+        k = k.view(b, l, self.h, self.d_k).transpose(1, 2)
+        v = v.view(b, l, self.h, self.d_k).transpose(1, 2)
 
         # attention has to be done on each head.
         mh_attn, mh_attn_weight = attention(q, k, v, mask=mask, dropout=self.dropout)
-        #print(mh_attn.shape, mh_attn_weight.shape)
-        # we need to create a contiguous memory space for tensor after transpose so we can apply view. 
+        # print(mh_attn.shape, mh_attn_weight.shape)
+        # we need to create a contiguous memory space for tensor after transpose so we can apply view.
         concat_attn = mh_attn.transpose(2, 1).contiguous().view(b, l, self.h * self.d_k)
         concat_attn_weight = torch.sum(mh_attn_weight, dim=1)
-        assert concat_attn.size() == (b,l, e)
+        assert concat_attn.size() == (b, l, e)
         # apply linear layer on concatenated attention.
         output = self.dropout(self.wo(concat_attn))
         return output, concat_attn_weight
 
-
-
 # %% ../notebooks/components.ipynb 22
 class LayerNormalization(nn.Module):
-    
-    def __init__(self, d:int, eps: float=1e-05, use_torch_implem:bool=True) -> None:
+    def __init__(
+        self, d: int, eps: float = 1e-05, use_torch_implem: bool = True
+    ) -> None:
         super().__init__()
         self.d = d
         self.eps = eps
         self.use_torch_implem = use_torch_implem
         self.gamma = torch.nn.Parameter(torch.ones(d, dtype=torch.float))  # scale
         self.beta = torch.nn.Parameter(torch.zeros(d, dtype=torch.float))  # offset
-        
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.use_torch_implem:
             # we normalize across features for each example and seq item.
             normalized_shape = x.size()[-1:]
             b, l, e = x.size()
-            x_hat = F.layer_norm(x, normalized_shape=[e], weight=self.gamma, bias=self.beta)
+            x_hat = F.layer_norm(
+                x, normalized_shape=[e], weight=self.gamma, bias=self.beta
+            )
         else:
             # normalization across features (independently) for each sample. We compute mean and var on the last 2 axis, so we have it per sampel
-            mean = x.mean((-1), keepdim=True)#.unsqueeze(-1)
-            var = x.var((-1), keepdim=True)#.unsqueeze(-1)
-            x_hat = torch.mul((x-mean)/(torch.sqrt(var)+self.eps), self.gamma)+self.beta
-        
-        return x_hat
+            mean = x.mean((-1), keepdim=True)  # .unsqueeze(-1)
+            var = x.var((-1), keepdim=True)  # .unsqueeze(-1)
+            x_hat = (
+                torch.mul((x - mean) / (torch.sqrt(var) + self.eps), self.gamma)
+                + self.beta
+            )
 
+        return x_hat
 
 # %% ../notebooks/components.ipynb 25
 class DecoderLayer(nn.Module):
-    def __init__(self, model_size:int, nb_heads: int=1, dropout: float=0., bias:bool=True, mlp_factor=4 ) -> None:
+    def __init__(
+        self,
+        model_size: int,
+        nb_heads: int = 1,
+        dropout: float = 0.0,
+        bias: bool = True,
+        mlp_factor=4,
+    ) -> None:
         super().__init__()
         self.layer_norm1 = LayerNormalization(model_size)
-        self.attn = MultiHeadAttention(d=model_size, h=nb_heads, dropout=dropout, bias=bias)
+        self.attn = MultiHeadAttention(
+            d=model_size, h=nb_heads, dropout=dropout, bias=bias
+        )
         self.mlp1 = nn.Linear(model_size, mlp_factor * model_size, bias=True)
         self.mlp2 = nn.Linear(mlp_factor * model_size, model_size, bias=True)
         self.activation = torch.nn.GELU()
         self.layer_norm2 = LayerNormalization(model_size)
-        
-        
+        self.dropout = nn.Dropout(dropout)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        b,l,d = x.size()
+        b, l, d = x.size()
         norm_x = self.layer_norm1(x)
         mask = unidirectional_mask(seq_len=l)
         attn_x = x + self.attn(norm_x, z=None, mask=None)[0]
-        
+
         norm_attn_x = self.layer_norm2(attn_x)
         lin1 = self.activation(self.mlp1(norm_attn_x))
-        x = x + self.mlp2(lin1)
+        x = x + self.dropout(self.mlp2(lin1))
         return x
-
 
 # %% ../notebooks/components.ipynb 27
 class DecoderTransformer(nn.Module):
-    
-    def __init__(self, vocab_size:int, max_seq_len:int,  model_size:int, nb_heads: int=1, nb_layers: int=1, dropout: float=0., bias:bool=True) -> None:
+    def __init__(
+        self,
+        vocab_size: int,
+        max_seq_len: int,
+        model_size: int,
+        nb_heads: int = 1,
+        nb_layers: int = 1,
+        dropout: float = 0.0,
+        bias: bool = True,
+    ) -> None:
         super().__init__()
         self.tok_emb = TokenEmbeddings(vocab_size, embedding_dim=model_size)
-        self.pos_enc = PositionalEncoder(max_seq_len=max_seq_len, embedding_dim=model_size, dropout=dropout, is_learned=True) 
-        self.layers = nn.ModuleList([DecoderLayer(model_size=model_size, nb_heads=nb_heads, dropout=dropout, bias=bias) for i in range(nb_layers)])
+        self.tok_emb = nn.Embedding(vocab_size, embedding_dim=model_size)
+        self.pos_enc = PositionalEncoder(
+            max_seq_len=max_seq_len,
+            embedding_dim=model_size,
+            dropout=dropout,
+            is_learned=True,
+        )
+        self.layers = nn.ModuleList(
+            [
+                DecoderLayer(
+                    model_size=model_size, nb_heads=nb_heads, dropout=dropout, bias=bias
+                )
+                for i in range(nb_layers)
+            ]
+        )
         self.layer_norm = LayerNormalization(model_size)
         self.unembedding = nn.Linear(model_size, vocab_size)
-        
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         seq_len = x.size()[1]
         emb = self.tok_emb(x)
@@ -232,8 +290,5 @@ class DecoderTransformer(nn.Module):
         for layer in self.layers:
             x = layer(x)
         x = self.layer_norm(x)
-        x = self.unembedding(x)
-        x = F.softmax(x, dim=-1)
-        
-        return x
-
+        logits = self.unembedding(x)
+        return logits

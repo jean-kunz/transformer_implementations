@@ -1,13 +1,10 @@
 {
-    "makefile.extensionOutputFolder": "./.vscode",
-    "python.linting.mypyEnabled": true,
-    "python.linting.flake8Enabled": true,
-    "python.linting.enabled": true, 
+    "python.envFile": "${workspaceFolder}/.env",
+    "python.defaultInterpreterPath": "${env:HOME}/Library/Caches/pypoetry/virtualenvs/transformer-implementations-urBBcPaT-py3.11",
+    "python.analysis.typeCheckingMode": "basic",
     "python.languageServer": "Default",
-    "flake8.args": [
-        "--max-line-length=128",
-        "--ignore=E402,F841,F401,E302,E305,E501"
-    ],
-    "python.analysis.typeCheckingMode": "basic"
-    
+    "editor.formatOnSave": true,
+    "autoDocstring.docstringFormat": "pep257",
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
 }
