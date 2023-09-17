@@ -18,6 +18,7 @@ bokeh = "^3"
 pandas = "^2"
 nbdev = "^2"
 torch = "^2"
+tensorboard = "^2.14.0"
 
 
 

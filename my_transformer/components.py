@@ -5,6 +5,8 @@ __all__ = ['device', 'g', 'PositionalEncoder', 'unidirectional_mask', 'attention
            'DecoderLayer', 'DecoderTransformer']
 
 # %% ../notebooks/components.ipynb 2
+import os
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -13,8 +15,9 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from torch.nn import functional as F
 from dataclasses import dataclass
+from .utils import save_model, load_model
 import math
-import random
+
 
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 # device = torch.device('cpu')

@@ -39,4 +39,6 @@ d = { 'settings': { 'doc_baseurl': '/transformer_implementations',
                                            'my_transformer.components.attention': ( 'components.html#attention',
                                                                                     'my_transformer/components.py'),
                                            'my_transformer.components.unidirectional_mask': ( 'components.html#unidirectional_mask',
-                                                                                              'my_transformer/components.py')}}}
+                                                                                              'my_transformer/components.py')},
+            'my_transformer.utils': { 'my_transformer.utils.load_model': ('utils.html#load_model', 'my_transformer/utils.py'),
+                                      'my_transformer.utils.save_model': ('utils.html#save_model', 'my_transformer/utils.py')}}}
