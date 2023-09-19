@@ -138,3 +138,5 @@ _docs/**
 **/sidebar.yml
 **/.gitignore
 
+runs/**/*.*
+
