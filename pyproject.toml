@@ -18,6 +18,8 @@ bokeh = "^3"
 pandas = "^2"
 nbdev = "^2"
 torch = "^2"
+tiktoken = "^0.5.1"
+deepdiff = "^6.5.0"
 
 
 [tool.poetry.group.dev.dependencies]
