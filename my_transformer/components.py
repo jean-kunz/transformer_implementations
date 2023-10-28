@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['device', 'g', 'PositionalEncoder', 'unidirectional_mask', 'attention', 'MultiHeadAttention', 'LayerNormalization',
-           'DecoderLayer', 'DecoderTransformer']
+           'DecoderLayer', 'DecoderTransformer', 'Trainer']
 
 # %% ../notebooks/components.ipynb 2
 import os
@@ -16,6 +16,8 @@ from torch.utils.data import Dataset, DataLoader
 from torch.nn import functional as F
 from dataclasses import dataclass
 from .utils import save_model, load_model
+from .tokenizers import BPETokenizer
+from torch.utils.tensorboard import SummaryWriter
 import math
 
 
@@ -285,3 +287,82 @@ class DecoderTransformer(nn.Module):
         x = self.layer_norm(x)
         logits = self.unembedding(x)
         return logits
+
+# %% ../notebooks/components.ipynb 35
+# trainer class for pytorch model that encapsulate training loop
+
+
+class Trainer:
+    def __init__(
+        self,
+        model: nn.Module,
+        optimizer: torch.optim.Optimizer,
+        train_dl: DataLoader,
+        test_dl: DataLoader,
+        eval_interval: int = 500,
+        eval_iters: int = 200,
+        max_iters: int = 5000,
+        do_save_model: bool = True,
+        model_version: str = "",
+        device: str = "cpu",
+    ) -> None:
+        self.model = model
+        self.optimizer = optimizer
+        self.train_dl = train_dl
+        self.test_dl = test_dl
+        self.eval_interval = eval_interval
+        self.eval_iters = eval_iters
+        self.max_iters = max_iters
+        self.do_save_model = do_save_model
+        self.model_version = model_version
+        self.device = device
+        self.writer = SummaryWriter(
+            f"../runs/my_gpt_{self.model_version}/{datetime.now().strftime('%m-%d-%Y_%H:%M:%S')}"
+        )
+
+    def next_batch(self, dl) -> tuple[torch.Tensor, torch.Tensor]:
+        batch = next(iter(dl))
+        x = batch["input_ids"].to(device)
+        y = batch["labels"].to(device)
+        return x, y
+
+    @torch.no_grad()
+    def estimate_loss(self, i: int):
+        out = {}
+        self.model.eval()
+        for split in ["train", "test"]:
+            dl = self.train_dl if split == "train" else self.test_dl
+            losses = torch.zeros(self.eval_iters)
+            for k in range(self.eval_iters):
+                X, Y = self.next_batch(dl)
+                logits, loss = self.model(X, Y)
+                losses[k] = loss.item()
+            loss_mean = losses.mean()
+            out[split] = loss_mean
+            self.writer.add_scalar(f"{split} loss", loss_mean, i)
+        self.model.train()
+        return out
+
+    def train(self):
+        ex_x, ex_y = next(iter(self.train_dl))
+
+        self.writer.add_graph(self.model, (ex_x, ex_y), use_strict_trace=False)
+        self.writer.flush()
+        for i in range(self.max_iters):
+            # every once in a while evaluate the loss on train and val sets
+            if i % self.eval_interval == 0:
+                losses = self.estimate_loss(i)
+                print(
+                    f"step {i}: train loss {losses['train']:.4f}, val loss {losses['test']:.4f}"
+                )
+
+            # sample a batch of data
+            xb, yb = next(iter(self.train_dl))
+
+            logits, loss = self.model(xb, yb)
+            self.optimizer.zero_grad(set_to_none=True)
+            loss.backward()
+            self.optimizer.step()
+
+        if self.do_save_model:
+            save_model(self.model, self.model_version)
