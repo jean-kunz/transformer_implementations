@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['device', 'g', 'PositionalEncoder', 'unidirectional_mask', 'attention', 'MultiHeadAttention', 'LayerNormalization',
-           'DecoderLayer', 'DecoderTransformer']
+           'DecoderLayer', 'DecoderTransformer', 'Trainer']
 
 # %% ../notebooks/components.ipynb 2
 import os
@@ -16,6 +16,7 @@ from torch.utils.data import Dataset, DataLoader
 from torch.nn import functional as F
 from dataclasses import dataclass
 from .utils import save_model, load_model
+from .tokenizers import BPETokenizer
 from torch.utils.tensorboard import SummaryWriter
 import math
 
@@ -287,7 +288,7 @@ class DecoderTransformer(nn.Module):
         logits = self.unembedding(x)
         return logits
 
-# %% ../notebooks/components.ipynb 33
+# %% ../notebooks/components.ipynb 36
 # trainer class for pytorch model that encapsulate training loop
 
 
@@ -319,11 +320,11 @@ class Trainer:
             f"../runs/my_gpt_{self.model_version}/{datetime.now().strftime('%m-%d-%Y_%H:%M:%S')}"
         )
 
-    def next_batch(self, dl)->tuple[torch.Tensor, torch.Tensor]]:
+    def next_batch(self, dl) -> tuple[torch.Tensor, torch.Tensor]:
         batch = next(iter(dl))
         x = batch["input_ids"].to(device)
         y = batch["labels"].to(device)
-        return x,y
+        return x, y
 
     @torch.no_grad()
     def estimate_loss(self, i: int):
@@ -351,7 +352,9 @@ class Trainer:
             # every once in a while evaluate the loss on train and val sets
             if i % self.eval_interval == 0:
                 losses = self.estimate_loss(i)
-                print(f"step {i}: train loss {losses['train']:.4f}, val loss {losses['test']:.4f}")
+                print(
+                    f"step {i}: train loss {losses['train']:.4f}, val loss {losses['test']:.4f}"
+                )
 
             # sample a batch of data
             xb, yb = next(iter(self.train_dl))
