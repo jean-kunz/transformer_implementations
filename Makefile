@@ -5,3 +5,6 @@ create_mac_env:
 	poetry install
 
 install_mac: create_mac_env
+
+test:
+	pytest --nb-test-files --log-cli-level debug  notebooks/test.ipynb
