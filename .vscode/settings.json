@@ -21,7 +21,6 @@
     },
     "jupyter.themeMatplotlibPlots": true,
     "jupyter.debugJustMyCode": true,
-    "diffEditor.experimental.useVersion2": true,
     // pylance
     "python.analysis.typeCheckingMode": "basic",
     "python.languageServer": "Default",
@@ -29,11 +28,16 @@
         "source.unusedImports",
         "source.convertImportFormat"
     ],
+    "flake8.severity": {
+        "E": "Error",
+        "F": "Error",
+        "I": "Information",
+        "W": "Warning"
+    },
     "python.analysis.autoFormatStrings": true,
     // formatting
     "[python]": {
         "editor.defaultFormatter": "ms-python.black-formatter",
         "editor.formatOnSave": true
     },
-    "taipyStudio.gUI.elementsFilePaths": []
 }
