@@ -134,7 +134,6 @@ class BPETokenizer:
         # print(f"Merges: {self.merges}, len: {len(self.merges)}")
 
     def encode(self, txt: str) -> list[int]:
-        print("-- encode:")
         words = self.pre_tokenizer.pre_tokenize_str(txt)
         word_splits = [[c for c in w] for w in words]
         print(word_splits)
