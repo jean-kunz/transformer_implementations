@@ -1,5 +1,4 @@
 {
-    "python.envFile": "${workspaceFolder}/.env",
     "python.defaultInterpreterPath": "${env:HOME}/Library/Caches/pypoetry/virtualenvs/transformer-implementations-urBBcPaT-py3.11",
     "autoDocstring.docstringFormat": "pep257",
     "python.testing.pytestEnabled": true,
@@ -9,35 +8,15 @@
             "column": 120,
             "color": "#ffcc00"
         }
-    ],
-    "notebook.formatOnSave.enabled": true,
-    "editor.formatOnSave": true,
+    ],    
     "notebook.cellToolbarVisibility": "hover",
-    "notebook.find.scope": {
-        "markupSource": true,
-        "markupPreview": true,
-        "codeSource": true,
-        "codeOutput": true
-    },
     "jupyter.themeMatplotlibPlots": true,
-    "jupyter.debugJustMyCode": true,
-    // pylance
-    "python.analysis.typeCheckingMode": "basic",
-    "python.languageServer": "Default",
-    "python.analysis.fixAll": [
-        "source.unusedImports",
-        "source.convertImportFormat"
-    ],
-    "flake8.severity": {
-        "E": "Error",
-        "F": "Error",
-        "I": "Information",
-        "W": "Warning"
-    },
-    "python.analysis.autoFormatStrings": true,
+    "jupyter.debugJustMyCode": true,    
     // formatting
+    "notebook.formatOnSave.enabled": true,
     "[python]": {
-        "editor.defaultFormatter": "ms-python.black-formatter",
-        "editor.formatOnSave": true
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "charliermarsh.ruff"
     },
+    "ruff.enable": true,        
 }
