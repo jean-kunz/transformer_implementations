@@ -140,3 +140,6 @@ _docs/**
 
 runs/**/*.*
 
+models/decoder_transformer-0.3-*.pt
+models/model_*.pt
+

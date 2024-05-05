@@ -9,12 +9,12 @@ from pathlib import Path
 import torch
 
 
-def save_model(model, model_version):
-    model_path = Path(f"../models/model_{model_version}.pt")
+def save_model(model, model_name, model_version, iter):
+    model_path = Path("../models") / f"{model_name}-{model_version}-{iter}.pt"
     os.makedirs("../models/", exist_ok=True)
     torch.save(model, model_path)
 
 
-def load_model(model_version):
-    model_path = Path(f"../models/model_{model_version}.pt")
+def load_model(model_name, model_version, iter):
+    model_path = Path(f"../models") / f"{model_name}-{model_version}-{iter}.pt"
     return torch.load(model_path)
