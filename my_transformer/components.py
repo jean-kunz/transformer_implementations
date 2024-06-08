@@ -426,7 +426,7 @@ class Trainer:
 do_train: bool = True
 model_version = "0.3"
 model_name = "decoder_transformer"
-last_iter = 3000  # to start from scratch
+last_iter = 3000  # 0 to start from scratch
 # last_iter = 7000
 if last_iter > 0:
     model = load_model(model_name, model_version, last_iter)
@@ -441,7 +441,7 @@ if do_train:
         loss_fn=F.cross_entropy,
         eval_interval=200,
         eval_iters=100,
-        max_iters=3001,
+        max_iters=3201,
         do_save_model=True,
         model_name=model_name,
         model_version=model_version,

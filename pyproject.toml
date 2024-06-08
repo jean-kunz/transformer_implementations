@@ -21,6 +21,7 @@ torch = "^2"
 tiktoken = "^0.5.1"
 deepdiff = "^6.5.0"
 transformers = "^4.34.0"
+tensorboard = "^2.17.0"
 
 
 [tool.poetry.group.dev.dependencies]
