@@ -1,5 +1,5 @@
 {
-    "python.defaultInterpreterPath": "${env:HOME}/Library/Caches/pypoetry/virtualenvs/transformer-implementations-urBBcPaT-py3.11",
+    //"python.defaultInterpreterPath": "${env:HOME}/Library/Caches/pypoetry/virtualenvs/transformer-implementations-urBBcPaT-py3.11",
     "autoDocstring.docstringFormat": "pep257",
     "python.testing.pytestEnabled": true,
     "python.testing.unittestEnabled": false,

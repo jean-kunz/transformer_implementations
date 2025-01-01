@@ -23,7 +23,7 @@ from torch.utils.tensorboard import SummaryWriter
 import math
 from tqdm import tqdm
 
-# %% ../notebooks/attention.ipynb 17
+# %% ../notebooks/attention.ipynb 15
 def unidirectional_mask(seq_len: int) -> torch.Tensor:
     # inverse_mask = torch.triu(torch.ones((1, seq_len, seq_len)), diagonal=1)  # .type(torch.uint8)
     # inverse_mask = torch.tril(torch.ones((T, T)))
@@ -33,7 +33,7 @@ def unidirectional_mask(seq_len: int) -> torch.Tensor:
     mask = torch.tril(torch.ones((1, seq_len, seq_len)))
     return mask
 
-# %% ../notebooks/attention.ipynb 19
+# %% ../notebooks/attention.ipynb 17
 def attention(
     query: torch.Tensor,
     key: torch.Tensor,
@@ -42,14 +42,12 @@ def attention(
     softmax: torch.nn.Module = nn.Softmax(dim=-1),
     dropout: Optional[torch.nn.Module] = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """compute attention weigths and attention weights applied to value tensor.
+    """compute multi-head attention weigths and attention weights applied to value tensor.
 
     Arguments:
         query -- query tensor in batch_size, head_nb, seq_len, d_k shape
         key -- same shape structure as query
         value -- same shape structure as query
-
-    Keyword Arguments:
         mask -- mask of tokens (default: {None})
         softmax -- softmax module (default: {nn.Softmax(dim=-1)})
         dropout -- dropout ratio (default: {None})
@@ -72,12 +70,12 @@ def attention(
 
     atn = attn_weights @ value
     # ic(atn.shape, attn_weights.shape, value.shape)
-    assert (
-        atn.shape == query.shape
+    assert torch.all(
+        torch.eq(atn.shape, query.shape)
     ), f"atn shape {atn.shape} should be the same as input tensors key, query and value shapes. Query shape: {query.shape}"
     return atn, attn_weights
 
-# %% ../notebooks/attention.ipynb 23
+# %% ../notebooks/attention.ipynb 21
 class MultiHeadAttention(nn.Module):
     """Multihead attention module as defined in Formal algorithm for transformers (https://arxiv.org/abs/2207.09238)
     It can be used for different attention architectures like encoder-decoder/seq-to-seq (very first transformer),
@@ -123,6 +121,7 @@ class MultiHeadAttention(nn.Module):
 
         batch_size, seq_len, d = x.size()
         if z is None:
+            # in decoder only context is the primary sequence.
             z = x
         q = self.wq(x)
         k = self.wk(z)
@@ -135,7 +134,7 @@ class MultiHeadAttention(nn.Module):
 
         # attention has to be done on each head.
         mh_attn, mh_attn_weight = attention(q, k, v, mask=mask, dropout=self.dropout)
-        assert mh_attn_weight.shape == (batch_size, self.h, seq_len, seq_len)
+        assert mh_attn_weight.size == (batch_size, self.h, seq_len, seq_len)
         # we need to create a contiguous memory space for tensor after transpose so we can apply view.
         concat_attn = (
             mh_attn.transpose(2, 1)
@@ -148,36 +147,27 @@ class MultiHeadAttention(nn.Module):
         output = self.dropout(self.wo(concat_attn))
         return output, concat_attn_weight
 
-# %% ../notebooks/attention.ipynb 27
+# %% ../notebooks/attention.ipynb 26
 class LayerNormalization(nn.Module):
-    def __init__(
-        self, d: int, eps: float = 1e-05, use_torch_implem: bool = True
-    ) -> None:
+    def __init__(self, d: int, eps: float = 1e-05) -> None:
         super().__init__()
         self.d = d
         self.eps = eps
-        self.use_torch_implem = use_torch_implem
         self.gamma = torch.nn.Parameter(torch.ones(d, dtype=torch.float))  # scale
         self.beta = torch.nn.Parameter(torch.zeros(d, dtype=torch.float))  # offset
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if self.use_torch_implem:
-            # we normalize across features for each example and seq item.
-            x_hat = F.layer_norm(
-                x, normalized_shape=[self.d], weight=self.gamma, bias=self.beta
-            )
-        else:
-            # normalization across features (independently) for each sample. We compute mean and var on the last 2 axis, so we have it per sampel
-            mean = x.mean((-1), keepdim=True)  # .unsqueeze(-1)
-            var = x.var((-1), keepdim=True)  # .unsqueeze(-1)
-            x_hat = (
-                torch.mul(((x - mean) / torch.sqrt(var + self.eps)), self.gamma)
-                + self.beta
-            )
+        # normalization across features (independently) for each sample. We compute mean and var on the last 2 axis, so we have it per sampel
+        mean = x.mean((-1), keepdim=True)  # .unsqueeze(-1)
+        # pytorch use welford method (with unbiased=False) which is numerically more robust for small differences and edge cases
+        var = x.var((-1), unbiased=False, keepdim=True)
+        x_hat = (
+            torch.mul(((x - mean) / torch.sqrt(var + self.eps)), self.gamma) + self.beta
+        )
 
-        return x_hat
+    return x_hat
 
-# %% ../notebooks/attention.ipynb 30
+# %% ../notebooks/attention.ipynb 29
 class DecoderTransformer(nn.Module):
     def __init__(
         self,
@@ -232,7 +222,7 @@ class DecoderTransformer(nn.Module):
             x = torch.cat((x, tok_next), dim=1)
         return x
 
-# %% ../notebooks/attention.ipynb 40
+# %% ../notebooks/attention.ipynb 39
 # trainer class for pytorch model that encapsulate training loop
 
 
