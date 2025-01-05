@@ -2,8 +2,8 @@
 
 # %% auto 0
 __all__ = ['batch_size', 'seq_len', 'vocab_size', 'model_size', 'num_heads', 'num_layers', 'dropout', 'nb_epoch', 'last_epoch_nb',
-           'model_name', 'model_version', 'train_ds', 'train_dl', 'test_ds', 'test_dl', 'tr', 'FeedForward',
-           'DecoderLayer', 'DecoderTransformer', 'EpochTrainer']
+           'model_name', 'model_version', 'tokenizer', 'train_ds', 'train_dl', 'test_ds', 'test_dl', 'tr', 'do_train',
+           'FeedForward', 'DecoderLayer', 'DecoderTransformer', 'get_trained_tokenizer', 'BPEDataset', 'EpochTrainer']
 
 # %% ../notebooks/model.ipynb 1
 import torch.nn as nn
@@ -25,6 +25,7 @@ from tokenizers import (
 from tokenizers import ByteLevelBPETokenizer
 
 
+from datetime import datetime
 from typing import Optional
 import math
 import os
@@ -80,7 +81,7 @@ class DecoderLayer(nn.Module):
     def forward(
         self, x: torch.Tensor, mask: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
-        b, l, d = x.size()
+        B, L, C = x.size()
         norm_x = self.layer_norm1(x)
         attn_x = x + self.attn(norm_x, z=None, mask=mask)[0]
 
@@ -89,7 +90,7 @@ class DecoderLayer(nn.Module):
         x = x + self.dropout(self.mlp2(lin1))
         return x
 
-# %% ../notebooks/model.ipynb 6
+# %% ../notebooks/model.ipynb 7
 class DecoderTransformer(nn.Module):
     def __init__(
         self,
@@ -153,38 +154,71 @@ class DecoderTransformer(nn.Module):
                 x = torch.cat((x, tok_next), dim=1)
         return x
 
-# %% ../notebooks/model.ipynb 15
-from datetime import datetime
+# %% ../notebooks/model.ipynb 13
+def get_trained_tokenizer(train_txt: str, vocab_size: int, name: str) -> Tokenizer:
+    trained_tokenizer = ByteLevelBPETokenizer()
+    trained_tokenizer.train_from_iterator([train_txt], vocab_size=vocab_size)
+    tok_dir = f"./{name}_{vocab_size}"
+    os.makedirs(tok_dir, exist_ok=True)
+    trained_tokenizer.save_model(tok_dir)
+    tokenizer = GPT2TokenizerFast.from_pretrained(tok_dir)
+    return tokenizer
 
+# %% ../notebooks/model.ipynb 14
+class BPEDataset(Dataset):
+    def __init__(
+        self, text: str, tokenizer: Tokenizer, seq_len: int = 20, device: str = "cpu"
+    ):
+        self.device = device
+        self.seq_len = seq_len
+        self.text = text
+        self.tokenizer = tokenizer
 
+        self.encoded = torch.tensor(
+            self.tokenizer.encode(self.text), dtype=torch.long, device=device
+        )
+
+    def __len__(self):
+        return len(self.encoded) // self.seq_len
+
+    def __getitem__(self, idx):
+        data_len = len(self.encoded)
+        i = idx * self.seq_len
+        if i >= data_len:
+            raise ValueError(f"idx {idx} bigger than data length {data_len}")
+        x = self.encoded[i : i + self.seq_len]
+        y = self.encoded[i + 1 : i + self.seq_len + 1]
+        return x, y
+
+# %% ../notebooks/model.ipynb 16
 class EpochTrainer:
     def __init__(
         self,
         # model: nn.Module,
         get_new_model: callable,
-        optimizer: torch.optim.Optimizer,
         train_dl: DataLoader,
         test_dl: DataLoader,
         model_version: str,
         model_name: str,
+        lr: float = 3e-4,
         nb_epochs: int = 100,
         loss_fn=F.cross_entropy,
         do_save_model: bool = True,
-        save_every_epoch_nb: int = 20,
+        log_interval: int = 50,
         device: str = "cpu",
     ) -> None:
-        self.model = get_new_model()
-        self.optimizer = optimizer
+        self.get_new_model_func = get_new_model
         self.loss_fn = loss_fn
         self.train_dl = train_dl
         self.test_dl = test_dl
         self.nb_epochs = nb_epochs
         self.do_save_model = do_save_model
-        self.save_every_epoch_nb = save_every_epoch_nb
         self.model_name = model_name
         self.model_version = model_version
         self.device = device
         self.writer = None
+        self.lr = lr
+        self.log_interval = log_interval
 
     def compute_loss(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         B, T, C = logits.shape
@@ -194,92 +228,111 @@ class EpochTrainer:
         return loss
 
     @torch.no_grad()
-    def estimate_loss(self, i: int):
-        out = {}
-        self.model.eval()
-        for split in ["train", "test"]:
-            dl = self.train_dl if split == "train" else self.test_dl
-            if dl is not None:
-                losses = []
-                for x, y in dl:
-                    logits = self.model(x)
-                    loss = self.compute_loss(logits, y)
-                    losses.append(loss.item())
-                loss_mean = torch.tensor(losses).mean()
-                out[split] = loss_mean
-                self.writer.add_scalar(f"{split} loss", loss_mean, i)
-        self.model.train()
-        return out
+    def evaluate(self, model: nn.Module, iter: int) -> None:
+        model.eval()
+        losses = []
+        for x, y in self.test_dl:
+            logits = model(x)
+            loss = self.compute_loss(logits, y)
+            losses.append(loss.item())
+        loss_mean = torch.tensor(losses).mean()
+        self.writer.add_scalar(f"test loss", loss_mean, iter)
+        model.train()
 
-    def train(self, from_epoch: int = 0):
+    def train(self, from_epoch: int = 0) -> nn.Module:
+        if from_epoch > 0:
+            model = load_model(self.model_name, self.model_version, from_epoch)
+        else:
+            model = self.get_new_model_func()
         self.writer = SummaryWriter(
             f"../runs/{self.model_name}_{self.model_version}/{datetime.now().strftime('%m-%d-%Y_%H:%M:%S')}"
         )
         ex_x, ex_y = next(iter(self.train_dl))
-        self.writer.add_graph(self.model, (ex_x), use_strict_trace=False)
+        self.writer.add_graph(model, (ex_x), use_strict_trace=False)
         self.writer.flush()
+
         if from_epoch > 0:
             epoch_start_nb = from_epoch + 1
         else:
             epoch_start_nb = 0
+        i = 0
         nb_epochs_computed = self.nb_epochs - epoch_start_nb
+        nb_batches = len(self.train_dl)
         with tqdm(
-            total=len(self.train_dl) * nb_epochs_computed,
+            total=nb_batches * nb_epochs_computed,
             desc=f"Epoch {nb_epochs_computed} times batch ({len(self.train_dl)})",
             unit="batch",
         ) as pbar:
+            model.train()
+            optimizer = torch.optim.AdamW(model.parameters(), lr=self.lr)
             for curr_epoch in range(epoch_start_nb, self.nb_epochs):
                 for b, (xb, yb) in enumerate(self.train_dl):
-                    if device == "mps":
-                        logits = self.model(xb)
-                        loss = self.compute_loss(logits, yb)
-                    else:
-                        # use bf16 when possible based on autocast rules. bf16 is same range than float32, but less precision.
-                        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                            logits = self.model(xb)
-                            loss = self.compute_loss(logits, yb)
-                    self.optimizer.zero_grad(set_to_none=True)
+                    i = (curr_epoch * nb_batches) + b
+
+                    logits = model(xb)
+                    optimizer.zero_grad()
+                    loss = self.compute_loss(logits, yb)
                     loss.backward()
-                    self.optimizer.step()
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                    optimizer.step()
+
+                    self.writer.add_scalar("train loss", loss.item(), i)
+
                     pbar.update(1)
+                    pbar.set_postfix(
+                        {
+                            "i": i,
+                            "epoch": curr_epoch,
+                            "batch_nb": b,
+                            "train_loss": f"{loss.item():.4f}",
+                        }
+                    )
 
-                losses = self.estimate_loss(curr_epoch)
-                pbar.set_postfix(
-                    {
-                        "epoch": curr_epoch,
-                        "train_loss": f"{losses.get('train',torch.inf):.4f}",
-                        "test_loss": f"{losses.get('test', torch.inf):.4f}",
-                    }
-                )
-                # print(f"epoch {curr_epoch}: train loss {losses.get('train',torch.inf):.4f}, val loss {losses.get('test', torch.inf):.4f}")
-                for name, weight in self.model.named_parameters():
-                    self.writer.add_histogram(name, weight, curr_epoch)
+                    if i % self.log_interval == 0:
+                        self.evaluate(model, i)
+                        for name, weight in model.named_parameters():
+                            self.writer.add_histogram(name, weight, i)
+                            if weight.grad is not None:
+                                g = weight.grad
+                                self.writer.add_histogram(f"{name}.grad", g, i)
+                                g_norm = g.data.norm(2)
+                                self.writer.add_histogram(
+                                    f"{name}.grad_norm", g_norm, i
+                                )
 
-                # every once in a while evaluate the loss on train and val sets
-                if self.do_save_model:
-                    if curr_epoch % self.save_every_epoch_nb == 0:
-                        save_model(
-                            self.model, self.model_name, self.model_version, curr_epoch
-                        )
+                        if self.do_save_model:
+                            save_model(model, self.model_name, self.model_version, i)
+
+        # write embeddings:
+        tok_embeddings = model.tok_emb.weight
+        tok_metadata = [tokenizer.decode([i]) for i in range(tokenizer.vocab_size)]
+        self.writer.add_embedding(tok_embeddings, metadata=tok_metadata)
+        pos_embeddings = model.pos_emb.weight
+        pos_metadata = range(seq_len)
+        self.writer.add_embedding(pos_embeddings, metadata=pos_metadata)
 
         if self.do_save_model:
-            save_model(self.model, self.model_name, self.model_version, curr_epoch)
+            save_model(model, self.model_name, self.model_version, curr_epoch)
+        return model
 
 
 torch.manual_seed(42)
 
 batch_size = 64  # how many independent sequences will we process in parallel?
 seq_len = 128  # what is the maximum context length for predictions?
-vocab_size = 5000
+vocab_size = 512 + 1
 model_size = 384
-num_heads = 1
-num_layers = 2
+num_heads = 6
+num_layers = 6
 dropout = 0.2
-nb_epoch = 1
+nb_epoch = 100
 last_epoch_nb = 0
 model_name = "gpt2"
 model_version = f"t{vocab_size}_0.1"
 
+tokenizer = get_trained_tokenizer(
+    train_txt, vocab_size=vocab_size, name="shakespare_tok"
+)
 train_ds = BPEDataset(train_txt, tokenizer=tokenizer, seq_len=seq_len, device=device)
 train_dl = DataLoader(train_ds, batch_size=batch_size)
 test_ds = BPEDataset(test_txt, tokenizer=tokenizer, seq_len=seq_len, device=device)
@@ -295,15 +348,19 @@ tr = EpochTrainer(
         nb_layers=num_layers,
         dropout=dropout,
     ).to(device),
-    optimizer=torch.optim.AdamW(model.parameters(), lr=3e-4),
+    lr=3e-4,
     train_dl=train_dl,
     test_dl=test_dl,
     loss_fn=F.cross_entropy,
     nb_epochs=nb_epoch,
     do_save_model=True,
-    save_every_epoch_nb=20,
+    log_interval=100,
     model_name=model_name,
     model_version=model_version,
     device=device,
 )
-tr.train(from_epoch=last_epoch_nb)
+do_train: bool = True
+if do_train:
+    model = tr.train(from_epoch=last_epoch_nb)
+else:
+    model = load_model(model_name=model_name, model_version=model_version, iter=1100)

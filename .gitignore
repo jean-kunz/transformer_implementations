@@ -143,3 +143,6 @@ runs/**/*.*
 models/decoder_transformer-0.3-*.pt
 models/model_*.pt
 
+models/*
+!models/gpt2-t513_0.1-1100.pt
+_proc/**
