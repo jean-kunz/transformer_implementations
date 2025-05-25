@@ -9,3 +9,10 @@ The project is developed using notebooks and nbdev to generate python from noteb
 - pos_encoding: positional encoding as defined in first attention paper
 - attention: basic attention components (nn.Modules)
 - model: use of all components to build a gpt2 like model to predict next token with shakespeare books.
+
+
+## installation
+
+`uv venv`
+`source .venv/bin/activate`
+`uv sync`

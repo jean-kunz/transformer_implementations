@@ -1,0 +1,6 @@
+# UV configuration file
+
+[uv]
+# The default location for storing packages
+index-url = "https://pypi.org/simple"
+editable-mode = "development"
