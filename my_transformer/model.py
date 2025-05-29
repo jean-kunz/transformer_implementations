@@ -206,6 +206,7 @@ class EpochTrainer:
         do_save_model: bool = True,
         log_interval: int = 50,
         device: str = "cpu",
+        tensorboard_log_dir: str = None,
     ) -> None:
         self.get_new_model_func = get_new_model
         self.loss_fn = loss_fn
@@ -219,6 +220,7 @@ class EpochTrainer:
         self.writer = None
         self.lr = lr
         self.log_interval = log_interval
+        self.tensorboard_log_dir = tensorboard_log_dir
 
     def compute_loss(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         B, T, C = logits.shape
@@ -236,7 +238,7 @@ class EpochTrainer:
             loss = self.compute_loss(logits, y)
             losses.append(loss.item())
         loss_mean = torch.tensor(losses).mean()
-        self.writer.add_scalar(f"test loss", loss_mean, iter)
+        self.writer.add_scalar(f"eval/loss", loss_mean, iter)
         model.train()
 
     def train(self, from_epoch: int = 0) -> nn.Module:
@@ -244,9 +246,11 @@ class EpochTrainer:
             model = load_model(self.model_name, self.model_version, from_epoch)
         else:
             model = self.get_new_model_func()
-        self.writer = SummaryWriter(
-            f"../runs/{self.model_name}_{self.model_version}/{datetime.now().strftime('%m-%d-%Y_%H:%M:%S')}"
-        )
+        
+        # Use the configurable log directory if provided, otherwise use the default path
+        log_dir = self.tensorboard_log_dir if self.tensorboard_log_dir else f"../runs/{self.model_name}_{self.model_version}/{datetime.now().strftime('%m-%d-%Y_%H:%M:%S')}"
+        self.writer = SummaryWriter(log_dir)
+        
         ex_x, ex_y = next(iter(self.train_dl))
         self.writer.add_graph(model, (ex_x), use_strict_trace=False)
         self.writer.flush()
@@ -276,7 +280,11 @@ class EpochTrainer:
                     torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                     optimizer.step()
 
-                    self.writer.add_scalar("train loss", loss.item(), i)
+                    # Log training metrics to TensorBoard
+                    self.writer.add_scalar("train/loss", loss.item(), i)
+                    # Log learning rate to TensorBoard
+                    current_lr = optimizer.param_groups[0]['lr']
+                    self.writer.add_scalar("train/lr", current_lr, i)
 
                     pbar.update(1)
                     pbar.set_postfix(
@@ -285,6 +293,7 @@ class EpochTrainer:
                             "epoch": curr_epoch,
                             "batch_nb": b,
                             "train_loss": f"{loss.item():.4f}",
+                            "lr": f"{current_lr:.6f}",
                         }
                     )
 

@@ -21,20 +21,9 @@ dependencies = [
     "deepdiff>=6.5.0",
     "transformers>=4.0.0",
 
-    "torch-tb-profiler>=0.4.3",
-
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.3.0",
-    "ipykernel>=6.0.0",
-    "ruff",
-    "black>=24.0.0",
-    "icecream>=2.0.0",
-    "ipywidgets",
-    "tensorboard>=2.0.0",
-]
+
 
 [build-system]
 requires = ["hatchling"]
@@ -65,7 +54,11 @@ testpaths = ["notebooks"]
 
 [dependency-groups]
 dev = [
+    "black>=25.1.0",
+    "icecream>=2.1.4",
     "ipywidgets>=8.1.7",
     "jupyter>=1.1.1",
+    "pytest>=8.3.5",
+    "ruff>=0.11.11",
     "tensorboard>=2.19.0",
 ]

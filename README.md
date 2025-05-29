@@ -13,6 +13,38 @@ The project is developed using notebooks and nbdev to generate python from noteb
 
 ## installation
 
-`uv venv`
-`source .venv/bin/activate`
-`uv sync`
+```bash
+uv venv
+source .venv/bin/activate
+uv sync
+```
+
+## TensorBoard Integration
+
+This project includes TensorBoard integration for visualizing training metrics. The following metrics are logged:
+
+- Training loss
+- Evaluation loss
+- Learning rate
+- Model parameters and gradients
+
+### Using TensorBoard
+
+To specify a custom log directory, use the `tensorboard_log_dir` parameter when creating an `EpochTrainer` instance:
+
+```python
+trainer = EpochTrainer(
+    # other parameters...
+    tensorboard_log_dir="path/to/log/dir"
+)
+```
+
+To view the TensorBoard dashboard, run:
+
+```bash
+tensorboard --logdir=path/to/log/dir
+```
+
+If you don't specify a custom log directory, logs will be saved to `../runs/{model_name}_{model_version}/{timestamp}`.
+
+You can then open your browser at http://localhost:6006 to view the metrics.
