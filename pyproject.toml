@@ -20,7 +20,7 @@ dependencies = [
     "tiktoken>=0.5.0",
     "deepdiff>=6.5.0",
     "transformers>=4.0.0",
-
+    "torch-tb-profiler>=0.4.3",
 ]
 
 

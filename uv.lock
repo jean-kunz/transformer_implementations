@@ -2397,6 +2397,19 @@ wheels = [
 ]
 
 [[package]]
+name = "torch-tb-profiler"
+version = "0.4.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pandas" },
+    { name = "tensorboard" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/96/3f/1bdbeae21db91179c295bcecb7194d57cd0e184125c69e5a6e315ea4770f/torch_tb_profiler-0.4.3.tar.gz", hash = "sha256:8b8d29b2de960b3c4423087b23cec29beaf9ac3a8c7b046c18fd25b218f726b1", size = 1057029 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/46/d0/891ec43349f287ea5c313ebc1320e4eda38ccd4c7a0951657213467eaab5/torch_tb_profiler-0.4.3-py3-none-any.whl", hash = "sha256:207a49b05572dd983e4ab29eb5e0fcadd60374a8f93c78ec638217e8d18788dc", size = 1053410 },
+]
+
+[[package]]
 name = "tornado"
 version = "6.5.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2452,6 +2465,7 @@ dependencies = [
     { name = "seaborn" },
     { name = "tiktoken" },
     { name = "torch" },
+    { name = "torch-tb-profiler" },
     { name = "transformers" },
 ]
 
@@ -2479,6 +2493,7 @@ requires-dist = [
     { name = "seaborn" },
     { name = "tiktoken", specifier = ">=0.5.0" },
     { name = "torch", specifier = ">=2.0.0" },
+    { name = "torch-tb-profiler", specifier = ">=0.4.3" },
     { name = "transformers", specifier = ">=4.0.0" },
 ]
 
