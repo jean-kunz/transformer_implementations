@@ -15,6 +15,6 @@ def save_model(model, model_name, model_version, iter):
     torch.save(model, model_path)
 
 
-def load_model(model_name, model_version, iter):
+def load_model(model_name, model_version, iter, weights_only=False):
     model_path = Path(f"../models") / f"{model_name}-{model_version}-{iter}.pt"
-    return torch.load(model_path)
+    return torch.load(model_path, weights_only=False)
