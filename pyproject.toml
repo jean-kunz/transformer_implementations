@@ -22,6 +22,7 @@ dependencies = [
     "transformers>=4.0.0",
     "torch-tb-profiler>=0.4.3",
     "scikit-learn>=1.6.1",
+    "rich>=14.0.0",
 ]
 
 
