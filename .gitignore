@@ -147,6 +147,4 @@ models/*
 !models/gpt2-t513_0.1-1100.pt
 _proc/**
 plots/**
-notebooks/improved_dylan_tokenizer/tokenizer.json
-notebooks/simple_dylan_tokenizer/tokenizer.json
-
+notebooks/**/tokenizer.json
